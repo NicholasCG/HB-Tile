@@ -1,7 +1,4 @@
-from time import time
-import game_board as hxg
-from tkinter import filedialog, Tk
-import inspect
+import game_board as hb
 import numpy as np
 
 if __name__ == "__main__":
@@ -10,11 +7,13 @@ if __name__ == "__main__":
     # dirname = filedialog.askopenfilename(title = "Select config file to use")
     # root.destroy()
 
-    board = hxg.GameBoard("default_settings.yaml")
+    board = hb.GameBoard("default_settings.yaml")
 
     # print(inspect.getmro(hxg.GameBoard))
 
-    tile_test = board[np.array([-9, 13])][0]
+    tile_test = board[np.array([-9, 13])]
+    print(tile_test)
+
     # for coords, tile in board.items():
     #     print("{:5s}: {}".format(coords, tile))
 

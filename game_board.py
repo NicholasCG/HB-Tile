@@ -5,13 +5,6 @@ import yaml
 import export
 from queue import Queue
 
-SE = np.array((0, -1, 1))
-SW = np.array((-1, 0, 1))
-W = np.array((-1, 1, 0))
-NW = np.array((0, 1, -1))
-NE = np.array((1, 0, -1))
-E = np.array((1, -1, 0))
-
 def v2_angle(vector1, vector2):
     '''
     Finds the angle between two direction vectors, and then
@@ -68,8 +61,8 @@ class GameBoard(hx.HexMap):
         self.templates = [EmptyTemplate]
         self.moved_pieces = []
         self.fired_pieces = []
-        self.player1_pieces = 0
-        self.player2_pieces = 0
+        self.num_players = 0
+        self.player_pieces = None
 
         self._logs = logs
 
@@ -82,53 +75,59 @@ class GameBoard(hx.HexMap):
             else:
                 raise yaml.scanner.ScannerError("Imported file in an invalid format")
 
-        # Create piece templates
-        for piece, info in test_list['pieces'].items():
-            self.templates.append(PieceTemplate(info['health'], 
-                                                info['movement_d'], 
-                                                info['attack_d'],
-                                                info['power']))
+        try:
+            # Create piece templates
+            for piece, info in test_list['pieces'].items():
+                self.templates.append(PieceTemplate(info['health'], 
+                                                    info['movement_d'], 
+                                                    info['attack_d'],
+                                                    info['power']))
 
-        # Import board from settings
-        self.axial_coords = np.array([np.array(i) for i in test_list['board']])
+            # Import board from settings
+            self.axial_coords = np.array([np.array(i) for i in test_list['board']])
 
-        self.game_hexes = []
+            self.game_hexes = []
 
-        for a in self.axial_coords:
-            self.game_hexes.append(GameHex(a))
-
-        self.game_hexes = np.array(self.game_hexes)
-
-        # Set player 1 pieces on the board.
-        for piece, piece_info in test_list['player1'].items():
-            index = 0
-            self.player1_pieces += 1
             for a in self.axial_coords:
-                if np.array_equal(piece_info[1], a):
-                    self.game_hexes[index].piece = Piece(p_type = piece_info[0],
-                                                    player = 1,
-                                                    direction = piece_info[2],
-                                                    template = self.templates[piece_info[0]])
-                index += 1
+                self.game_hexes.append(GameHex(a))
 
-        # Set player 2 pieces on the board.
-        for piece, piece_info in test_list['player2'].items():
-            index = 0
-            self.player2_pieces += 1
-            for a in self.axial_coords:
-                if np.array_equal(piece_info[1], a):
-                    self.game_hexes[index].piece = Piece(p_type = piece_info[0],
-                                                    player = 2,
-                                                    direction = piece_info[2],
-                                                    template = self.templates[piece_info[0]])
-                index += 1
+            self.game_hexes = np.array(self.game_hexes)
+
+            self.num_players = len(test_list['players'])
+            self.player_pieces = np.zeros(self.num_players)
+            player_index = 0
+
+            # Goes through each of the players and looks at what pieces they have.
+            for player_num, player_info in test_list['players'].items():
+
+                # Goes through each piece the player has, and stores the piece's
+                # info at the corresponding tile
+                for piece, piece_info in player_info.items():
+                    index = 0
+                    self.player_pieces[player_index] += 1
+
+                    for a in self.axial_coords:
+                        if np.array_equal(piece_info[1], a):
+                            self.game_hexes[index].piece = Piece(p_type = piece_info[0],
+                                                                 player = player_num,
+                                                                 direction = piece_info[2],
+                                                                 template = self.templates[piece_info[0]])
+                        index += 1
+                player_index += 1
+
+        except KeyError as e:
+            raise yaml.scanner.ScannerError("Imported file is improperly formatted")
 
         self[self.axial_coords] = self.game_hexes
-
         if self._logs:
             self.export_loc = export.init_log(self)
             export.parse_turn(self, self.export_loc)
 
+    # Hexy usually returns a list, but since the user should only be calling
+    # one set of coordinates, it should return only one tile.
+    def __getitem__(self, coordinates):
+        return super().__getitem__(coordinates)[0]
+        
     def attack_piece(self, attacker: np.ndarray, target: np.ndarray):
         # Check to make sure the coordinates are not the same.
         if (np.array_equal(attacker, target) 
@@ -174,7 +173,8 @@ class GameBoard(hx.HexMap):
             # Subtract health from the enemy piece.
             # Damage = max attack power divided by 1 plus the natural log of the moves's distance.
             # This is then multiplied by a random value, and then floored to preserve integer value.
-            damage = np.floor(attacking_piece.piece.power / (1 + np.log(valid_moves[index][2])) * max(0, np.random.normal(1, 0.2)))
+            damage = np.floor(attacking_piece.piece.get_power() / 
+                            (1 + np.log(valid_moves[index][2])) * max(0, np.random.normal(1, 0.2)))
             target_piece.piece.health -= int(damage)
             if target_piece.piece.health > 0:
                 self.fired_pieces.append(attacker)
@@ -182,11 +182,7 @@ class GameBoard(hx.HexMap):
             
         # Place the piece at the old coordinates to the new coordinates, and
         # change the piece at the old coordinates to the empty piece.
-
-        if target_piece.piece.player == 1:
-            self.player1_pieces -= 1
-        elif target_piece.piece.player == 2:
-            self.player2_pieces -= 1
+        self.player_pieces[target_piece.piece.player] -= 1
 
         self[target][0].piece = EmptyPiece
         self.fired_pieces.append(attacker)
@@ -249,13 +245,13 @@ class GameBoard(hx.HexMap):
 
     # Directional breadth first search movement algorithm.
     def get_valid_moves(self, hex : GameHex) -> np.ndarray:
-        dist = hex.piece.movement_d
+        dist = hex.piece.get_movement_distance()
         center = hex.get_axial_coords()
 
         moves = []
         frontier = Queue()
 
-        Directions = np.array(["NW", "NE", "SE", "SW", "E", "W"])
+        Directions = np.array([hx.NW, hx.NE, hx.SE, hx.SW, hx.E, hx.W])
 
         move = np.array([center[0], center[1], 0, hex.piece.direction], dtype = object)
         frontier.put(move)
@@ -266,7 +262,7 @@ class GameBoard(hx.HexMap):
             r = current[0]
             q = current[1]
             cost = current[2]
-            direction = current[3]
+            direction = "hx." + current[3]
 
             found = False
             for i in moves[::-1]:
@@ -281,7 +277,7 @@ class GameBoard(hx.HexMap):
                 continue
 
             for dir in Directions:
-                move_cost = cost + v2_angle(eval(direction), eval(dir))
+                move_cost = cost + v2_angle(eval(direction), dir)
                 if move_cost <= dist:
                     move = np.array([r, q, move_cost, dir], dtype = object)
                     moves.append(move)
@@ -304,7 +300,7 @@ class GameBoard(hx.HexMap):
     def get_valid_attacks(self, hex: GameHex) -> np.ndarray:
         hex = self[hex]
         center = hex.get_axial_coords()
-        center_direction = eval(hex.piece.direction)
+        center_direction = eval("hx." + hex.piece.direction)
         center_start = np.array([center[0], center[1], 0])
         moves = np.array([center_start])
         
@@ -316,7 +312,7 @@ class GameBoard(hx.HexMap):
         while not frontier.empty():
             current = frontier.get()
 
-            if current[2] > hex.piece.attack_d:
+            if current[2] > hex.piece.get_attack_distance():
                 continue
 
             cube_current = hx.axial_to_cube(np.array([current[0:2]]))
@@ -342,7 +338,7 @@ class GameBoard(hx.HexMap):
                 if found:
                     continue
                 else:
-                    if current[2] + 1 + v2_angle(center_direction, direction_cube) <= hex.piece.attack_d:
+                    if current[2] + 1 + v2_angle(center_direction, direction_cube) <= hex.piece.get_attack_distance():
                         new_move = np.array([next_nb[0][0], next_nb[0][2], current[2] + 1 + v2_angle(center_direction, direction_cube)])
                         moves = np.vstack([moves, new_move])
                         frontier.put(new_move)
@@ -357,14 +353,23 @@ class GameBoard(hx.HexMap):
         self.moved_pieces = []
         self.fired_pieces = []
 
-        if self.player == 1:
-            self.player = 2
-        elif self.player == 2:
+        self.player += 1
+        if self.player > self.num_players:
             self.player = 1
 
-        if self.player1_pieces == 0:
-            return 2
-        elif self.player2_pieces == 0:
-            return 1
-        else:
-            return 0
+        # This creates a special copy of the players' pieces count array, where
+        # a certain player's count can be hidden from the view.
+        mask_player_count = np.ma.copy(self.player_pieces)
+        mask_player_count.mask = False
+
+        for player in range(self.num_players):
+            # Hide the current player's count in the mask array.
+            mask_player_count.mask[player] = True
+
+            # Check if the current player has > 0 pieces, and all the other players have <= 0 pieces.
+            if self.player_pieces[player] > 0 and all(i <= 0 for i in mask_player_count.compressed()):
+                return player + 1
+
+            mask_player_count.mask[player] = False
+
+        return 0

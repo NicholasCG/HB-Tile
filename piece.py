@@ -2,12 +2,12 @@ import hexy as hx
 
 class PieceTemplate(hx.HexTile):
     '''
-    Interntal class to hold basic information
+    Internal class to hold basic information
     about piece types. Generated when importing
     from settings file.
     '''
     def __init__(self, health, movement_d, attack_d, power):
-        self.health = health
+        self.max_health = health
         self.movement_d = movement_d
         self.attack_d = attack_d
         self.power = power
@@ -23,12 +23,20 @@ class Piece:
     def __init__ (self, p_type, player, direction, template = EmptyTemplate):
         self.p_type = p_type
         self.player = player
-        self.max_health = template.health
-        self.health = template.health
-        self.movement_d = template.movement_d
-        self.attack_d = template.attack_d
-        self.power = template.power
+        self.health = template.max_health
         self.direction = direction
         self.template = template
 
+    def get_max_health(self):
+        return self.template.max_health
+
+    def get_movement_distance(self):
+        return self.template.movement_d
+
+    def get_attack_distance(self):
+        return self.template.attack_d
+
+    def get_power(self):
+        return self.template.power
+    
 EmptyPiece = Piece(0, 0, "", EmptyTemplate)
