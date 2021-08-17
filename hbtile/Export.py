@@ -3,13 +3,14 @@ import os
 
 def init_log(game):
     day = datetime.now()
-    os.mkdir("logs/")
-    location = "logs/" + day.strftime("%d_%m_%Y-%H_%M_%S") + ".txt"
+    if not os.path.isdir("logs/"):
+        os.mkdir("logs/")
+    location = os.path.join("logs", day.strftime("%d_%m_%Y-%H_%M_%S") + ".txt")
     file = open(location, "x")
     
     for x in range(1, len(game.templates)):
         template = game.templates[x]
-        info_list = [str(template.health), str(template.movement_d), str(template.attack_d), str(template.power)]
+        info_list = [str(template.max_health), str(template.movement_d), str(template.attack_d), str(template.power)]
         info = " ".join(info_list) + "\n"
         file.write(info)
     file.write("-\n")
@@ -23,7 +24,7 @@ def init_log(game):
 
 def parse_turn(game, file):
     f = open(file, "a")
-    for ignore, tile in game.items():
+    for _, tile in game.items():
         if tile.piece.player == 1:
             info_list = [str(tile.piece.player), 
                         str(tile.piece.p_type), 
@@ -33,7 +34,7 @@ def parse_turn(game, file):
                         str(tile.piece.health)]
             f.write(" ".join(info_list) + "\n")
 
-    for ignore, tile in game.items():
+    for _, tile in game.items():
         if tile.piece.player == 2:
             info_list = [str(tile.piece.player), 
                         str(tile.piece.p_type), 

@@ -1,3 +1,6 @@
-/__pycache__
+__pycache__
+/logs
 *.yaml
 !default_settings.yaml
+ignore.txt
+test.py
