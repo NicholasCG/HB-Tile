@@ -5,9 +5,12 @@ import hexy as hx
 import numpy as np
 import yaml
 
-import hbtile.Export as export
-from hbtile.Piece import EmptyPiece, EmptyTemplate, Piece, PieceTemplate
+from .Export import *
+from .Piece import EmptyPiece, EmptyTemplate, Piece, PieceTemplate
+from .Errors import InvalidFormatError
 
+
+DEFAULT_SETTINGS = "default_settings.yaml"
 
 def v2_angle(vector1, vector2):
     '''
@@ -68,23 +71,21 @@ class GameBoard(hx.HexMap):
 
         self._logs = logs
 
-        try:
-            file = open(file_name)
-            test_list = yaml.safe_load(file)
-        except Exception as e:
-            if file_name == "":
-                raise FileNotFoundError("No input file was given")
-            else:
-                raise yaml.scanner.ScannerError("Imported file in an invalid format")
+        file = open(file_name)
+        test_list = yaml.safe_load(file)
 
         try:
             # Create piece templates
-            for piece, info in test_list['pieces'].items():
+            for _, info in test_list['pieces'].items():
                 self.templates.append(PieceTemplate(info['health'], 
                                                     info['movement_d'], 
                                                     info['attack_d'],
                                                     info['power']))
 
+        except Exception as e:
+            raise InvalidFormatError("Configuration file invalid in piece template section")
+
+        try:
             # Import board from settings
             self.axial_coords = np.array([np.array(i) for i in test_list['board']])
 
@@ -104,7 +105,7 @@ class GameBoard(hx.HexMap):
 
                 # Goes through each piece the player has, and stores the piece's
                 # info at the corresponding tile
-                for piece, piece_info in player_info.items():
+                for _, piece_info in player_info.items():
                     index = 0
                     self.player_pieces[player_index] += 1
 
@@ -118,12 +119,16 @@ class GameBoard(hx.HexMap):
                 player_index += 1
 
         except KeyError as e:
-            raise yaml.scanner.ScannerError("Imported file is improperly formatted")
+            raise InvalidFormatError("Configuration file invalid in player piece section")
 
-        self[self.axial_coords] = self.game_hexes
+        try:
+            self[self.axial_coords] = self.game_hexes
+        except (ValueError, IndexError) as e:
+            raise InvalidFormatError("Configuration file invalid in board coordinates section")
+            
         if self._logs:
-            self.export_loc = export.init_log(self)
-            export.parse_turn(self, self.export_loc)
+            self.export_loc = init_log(self)
+            parse_turn(self, self.export_loc)
 
     # Hexy usually returns a list, but since the user should only be calling
     # one set of coordinates, it should return only one tile.
@@ -363,7 +368,7 @@ class GameBoard(hx.HexMap):
     # if the game has ended.
     def end_turn(self):
         if self._logs:
-            export.parse_turn(self, self.export_loc)
+            parse_turn(self, self.export_loc)
         self.moved_pieces = []
         self.fired_pieces = []
 
