@@ -1,6 +1,5 @@
 __pycache__
 /logs
-*.yaml
-!default_settings.yaml
-ignore.txt
 test.py
+dist/
+MANIFEST

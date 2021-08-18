@@ -1,20 +1,19 @@
 from distutils.core import setup
 setup(
-  name = 'HBTile',         
+  name = 'hbtile',         
   packages = ['hbtile'],   
-  version = '1.0.0',      
+  version = '1.0.1',      
   license='MIT',        
   description = 'A library for simulating tile based games with separate attacking and directional movement',   
   author = 'Nicholas Gray',
   author_email = 'nicholascgray@knights.ucf.edu', 
   url = 'https://github.com/NicholasCG/HBTile',
-  download_url = 'https://github.com/NicholasCG/HBTile/archive/1.0.0.tar.gz',
+  download_url = 'https://github.com/NicholasCG/HBTile/archive/1.0.1.tar.gz',
   keywords = ['python', 'hexagon', 'game', 'hbtile', 'hexy'],
   install_requires=[            
           'hexy',
-          'pickle',
           'numpy',
-          'yaml'
+          'pyyaml'
       ],
   classifiers=[
     'Development Status :: 5 - Production/Stable',
