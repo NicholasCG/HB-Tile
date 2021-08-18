@@ -15,7 +15,7 @@ def init_log(game):
         file.write(info)
     file.write("-\n")
 
-    for ignore, tile in game.items():
+    for _, tile in game.items():
         file.write(str(tile.axial_coordinates[0]) + " " + str(tile.axial_coordinates[1]) + "\n")
     file.write("-\n")
     file.close()
