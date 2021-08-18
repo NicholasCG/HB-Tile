@@ -8,7 +8,7 @@ setup(
   author = 'Nicholas Gray',
   author_email = 'nicholascgray@knights.ucf.edu', 
   url = 'https://github.com/NicholasCG/HBTile',
-  download_url = 'https://github.com/NicholasCG/HBTile/archive/HBTile-1.0.0.tar.gz',
+  download_url = 'https://github.com/NicholasCG/HBTile/archive/1.0.0.tar.gz',
   keywords = ['python', 'hexagon', 'game', 'hbtile', 'hexy'],
   install_requires=[            
           'hexy',
