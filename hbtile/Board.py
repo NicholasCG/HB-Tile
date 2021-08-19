@@ -9,8 +9,15 @@ from .Export import *
 from .Piece import EmptyPiece, EmptyTemplate, Piece, PieceTemplate
 from .Errors import InvalidFormatError
 
-
+# Constants
 DEFAULT_SETTINGS = "default_settings.yaml"
+
+E = 0
+NE = 1
+NW = 2
+W = 3
+SW = 4
+SE = 5
 
 def v2_angle(vector1, vector2):
     '''
@@ -40,9 +47,9 @@ class GameHex(hx.HexTile):
     at specific axial coordinates. Holds information
     on its coordinates and what piece is on the tile.
     '''
-    def __init__ (self, axial_coordinates, piece = 0, player = 0, piece_template = EmptyTemplate):
+    def __init__ (self, axial_coordinates):
         self.axial_coordinates = axial_coordinates
-        self.piece = Piece(piece, player, piece_template)
+        self.piece = EmptyPiece
 
     def get_axial_coords(self):
         return self.axial_coordinates
@@ -50,8 +57,8 @@ class GameHex(hx.HexTile):
     def get_piece(self):
         return self.piece
 
-    def set_piece(self, piece, player, piece_template):
-        self.piece = Piece(piece, player, piece_template)
+    def set_piece(self, piece, player, direction, piece_template):
+        self.piece = Piece(piece, player, direction, piece_template)
 
 class GameBoard(hx.HexMap):
     '''
@@ -111,10 +118,19 @@ class GameBoard(hx.HexMap):
 
                     for a in self.axial_coords:
                         if np.array_equal(piece_info[1], a):
-                            self.game_hexes[index].piece = Piece(p_type = piece_info[0],
-                                                                 player = player_num,
-                                                                 direction = piece_info[2],
-                                                                 template = self.templates[piece_info[0]])
+                            if type(piece_info[2]) == str:
+                                self.game_hexes[index].piece = Piece(p_type = piece_info[0],
+                                                                    player = player_num,
+                                                                    direction = eval(piece_info[2]),
+                                                                    template = self.templates[piece_info[0]])
+                            elif type(piece_info[2]) == int:
+                                self.game_hexes[index].piece = Piece(p_type = piece_info[0],
+                                                                    player = player_num,
+                                                                    direction = piece_info[2],
+                                                                    template = self.templates[piece_info[0]])
+                            else:
+                                raise InvalidFormatError("Direction must be given as a string or an integer")
+
                         index += 1
                 player_index += 1
 
@@ -125,7 +141,7 @@ class GameBoard(hx.HexMap):
             self[self.axial_coords] = self.game_hexes
         except (ValueError, IndexError) as e:
             raise InvalidFormatError("Configuration file invalid in board coordinates section")
-            
+
         if self._logs:
             self.export_loc = init_log(self)
             parse_turn(self, self.export_loc)
@@ -314,6 +330,65 @@ class GameBoard(hx.HexMap):
 
         moves = np.array(moves, dtype=object)
         return moves
+
+    def new_get_valid_moves(self, coords: np.ndarray):
+
+        hex = self[coords]
+        max_dist = hex.piece.get_movement_distance()
+
+        moves = set()
+        moves_cost = dict()
+        frontier = Queue()
+
+        directions = np.array([hx.E, hx.NE, hx.NW, hx.W, hx.SW, hx.SE])
+
+        start = (coords[0], coords[1], hex.piece.direction)
+        moves_cost[start] = 0
+        # print(start)
+        # print(moves)
+
+        print("Starting:")
+        print("max_dist", max_dist)
+        print("initial direction", hex.piece.direction)
+        frontier.put(start)
+        while not frontier.empty():
+            current = frontier.get()
+
+            r = current[0]
+            q = current[1]
+            direction = current[2]
+            cost = moves_cost[current]
+
+            print(current, cost)
+            if current in moves:
+                print("already in", current)
+                if cost < moves_cost[current]:
+                    moves_cost[current] = cost
+                else:
+                    continue
+
+            for direction_num in range(6):
+                neighbor_dir = directions[direction_num]
+                new_cost = cost + v2_angle(directions[direction], neighbor_dir)
+
+                if new_cost <= max_dist:
+                    move = (r, q, direction_num)
+                    moves.add(move)
+
+                    cube_current = hx.axial_to_cube(np.array([[r, q]]))
+                    neighbor = (cube_current + neighbor_dir)[0]
+                    
+                    if new_cost + 1 <= max_dist:
+                        neighbor_move = (neighbor[0], neighbor[2], direction_num)
+                        temp_coords = np.array([neighbor[0], neighbor[2]])
+
+                        if (np.array_equal(self[temp_coords], []) or self[temp_coords].piece.player != 0):
+                            continue
+                        else:
+                            moves_cost[neighbor_move] = new_cost + 1
+                            frontier.put(neighbor_move)
+
+        return list(moves)
 
     # Breadth first search, but technically implemented incorrectly for directional movement. 
     # However, the shapes formed look quite nice to me as an attack formation.

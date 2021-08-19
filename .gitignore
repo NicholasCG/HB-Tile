@@ -3,3 +3,5 @@ __pycache__
 test.py
 dist/
 MANIFEST
+*.yaml
+!default_settings.yaml

@@ -39,4 +39,4 @@ class Piece:
     def get_power(self):
         return self.template.power
     
-EmptyPiece = Piece(0, 0, "", EmptyTemplate)
+EmptyPiece = Piece(0, 0, 0, EmptyTemplate)
